@@ -39,12 +39,12 @@ class UserSession:
         self.listen_song_percentage = 1
         self.song_started_at = 0
         self.elepsed_session_time = 0
-        kafka_host = os.environ['KAFKA_HOST']
-        kafka_port = os.environ['KAFKA_PORT']
-        self.kafka_topic = os.environ['KAFKA_TOPIC']
-        db_user = os.environ['MONGO_USER']
-        db_pass = os.environ['MONGO_PASS']
-        db_host = os.environ['MONGO_HOST']
+        kafka_host = os.getenv('KAFKA_HOST')
+        kafka_port = os.getenv('KAFKA_PORT')
+        self.kafka_topic = os.getenv('KAFKA_TOPIC')
+        db_user = os.getenv('MONGO_USER')
+        db_pass = os.getenv('MONGO_PASS')
+        db_host = os.getenv('MONGO_HOST')
         self.db = MongoClient('mongodb://%s:%s@%s' % (db_user, db_pass, db_host)).musicapp
         #self.kafka_producer = KafkaProducer(bootstrap_servers='%s:%s' % (kafka_host, kafka_port))
 
@@ -168,7 +168,7 @@ class ProfilesGenerator:
         profiles = list()
         for _ in range(quantity):
             new_profile = self.fake.simple_profile()
-            print(new_profile)
+            #print(new_profile)
             new_profile['birthdate'] = datetime.combine(new_profile['birthdate'], datetime.min.time())
             result = self.db.profiles.insert_one(new_profile)
             new_profile['user_id'] = str(result.inserted_id)
@@ -187,8 +187,8 @@ class MusicStreamApp:
 
     def __init__(self):
         self.db = MongoClient('mongodb://%s:%s@127.0.0.1' % ('admin', 'admin')).musicapp
-        self.tracks = pd.read_csv(filepath="tracks.csv", delimiter=',', encoding="utf-8")
-        self.artists = pd.read_csv(filepath="artists.csv", delimiter=',', encoding="utf-8")
+        self.tracks = pd.read_csv(filepath_or_buffer="tracks.csv", delimiter=',', encoding="utf-8")
+        self.artists = pd.read_csv(filepath_or_buffer="artists.csv", delimiter=',', encoding="utf-8")
 
     def get_song(self):
         """
@@ -201,8 +201,9 @@ class MusicStreamApp:
         # ]
 
         # song = list(self.db.tracks.aggregate(pipeline=pipeline))[0]
-  
-        return song
+        #print(self.tracks)
+        song = self.tracks.sample(n=1).to_dict('index')
+        return list(song.values())[0]
 
     def add_new_song(self):
         """
