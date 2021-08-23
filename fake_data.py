@@ -1,18 +1,3 @@
-"""
-Music Streaming Data
-
-TODO:
-
-
-- Generate pool of users
-- Generate random events
-  -- play song
-  -- change song
-  -- stop song
-"""
-
-
-
 import random
 import logging
 import threading
@@ -20,7 +5,6 @@ import time
 import os
 import pandas as pd
 
-from pymongo import MongoClient
 from datetime import date
 from datetime import datetime
 from uuid import uuid4
@@ -31,24 +15,19 @@ from faker import Faker
 
 class UserSession:
 
-    def __init__(self, profile=None):
+    def __init__(self, app, profile=None):
         self.profile = profile
         self.current_song = None
         self.application_state = 'STOPPED' # ['STOPPED', 'PLAYING']
-        self.app = MusicStreamApp()
+        self.app = app
         self.listen_song_percentage = 1
         self.song_started_at = 0
         self.elepsed_session_time = 0
         kafka_host = os.getenv('KAFKA_HOST')
         kafka_port = os.getenv('KAFKA_PORT')
         self.kafka_topic = os.getenv('KAFKA_TOPIC')
-        db_user = os.getenv('MONGO_USER')
-        db_pass = os.getenv('MONGO_PASS')
-        db_host = os.getenv('MONGO_HOST')
-        self.db = MongoClient('mongodb://%s:%s@%s' % (db_user, db_pass, db_host)).musicapp
         #self.kafka_producer = KafkaProducer(bootstrap_servers='%s:%s' % (kafka_host, kafka_port))
 
-        #self.logger = logging.basicConfig(filename='{username}_{timestamp}'.format(self.profile['username'], str(int(datetime.utcnow().timestamp()))), encoding='utf-8', level=logging.DEBUG)
 
     def initiate_session(self):
         # this will run a infinite loop simulating a user using the application. Timeout = 30min
@@ -161,22 +140,16 @@ class ProfilesGenerator:
         logging.info('INITIALIZING APP...')
         Faker.seed(0)
         self.fake = Faker()
-        self.db = MongoClient('mongodb://%s:%s@127.0.0.1' % ('admin', 'admin')).musicapp
 
     def generate_profiles_pool(self, quantity: int = 10):
         logging.info("Generating {} profiles...".format(str(quantity)))
         profiles = list()
         for _ in range(quantity):
             new_profile = self.fake.simple_profile()
-            #print(new_profile)
             new_profile['birthdate'] = datetime.combine(new_profile['birthdate'], datetime.min.time())
-            result = self.db.profiles.insert_one(new_profile)
-            new_profile['user_id'] = str(result.inserted_id)
+            new_profile['user_id'] = str(uuid4())[:8]
             profiles.append(new_profile)
             
-            
-
-        # save to database
         #print(profiles)
         return profiles
         
@@ -186,7 +159,7 @@ class ProfilesGenerator:
 class MusicStreamApp:
 
     def __init__(self):
-        self.db = MongoClient('mongodb://%s:%s@127.0.0.1' % ('admin', 'admin')).musicapp
+        logging.info("Loading data...")
         self.tracks = pd.read_csv(filepath_or_buffer="tracks.csv", delimiter=',', encoding="utf-8")
         self.artists = pd.read_csv(filepath_or_buffer="artists.csv", delimiter=',', encoding="utf-8")
 
@@ -218,11 +191,12 @@ if __name__ == '__main__':
     logging.info('Running application')
 
     profile_generator = ProfilesGenerator()
+    app = MusicStreamApp()
     profiles = profile_generator.generate_profiles_pool(200)
 
     threads = list()
     for p in profiles:
-        x = threading.Thread(target=UserSession(p).initiate_session)
+        x = threading.Thread(target=UserSession(app, p).initiate_session)
         threads.append(x)
         x.start()
     
