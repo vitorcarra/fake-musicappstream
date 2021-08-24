@@ -4,6 +4,7 @@ import threading
 import time
 import os
 import pandas as pd
+import argparse
 
 from datetime import date
 from datetime import datetime
@@ -11,11 +12,12 @@ from uuid import uuid4
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 from faker import Faker
-
+from dotenv import load_dotenv
+import json
 
 class UserSession:
 
-    def __init__(self, app, profile=None):
+    def __init__(self, app, profile=None, kafka_producer=None):
         self.profile = profile
         self.current_song = None
         self.application_state = 'STOPPED' # ['STOPPED', 'PLAYING']
@@ -23,11 +25,8 @@ class UserSession:
         self.listen_song_percentage = 1
         self.song_started_at = 0
         self.elepsed_session_time = 0
-        kafka_host = os.getenv('KAFKA_HOST')
-        kafka_port = os.getenv('KAFKA_PORT')
-        self.kafka_topic = os.getenv('KAFKA_TOPIC')
-        #self.kafka_producer = KafkaProducer(bootstrap_servers='%s:%s' % (kafka_host, kafka_port))
-
+        if kafka_producer:
+            self.kafka_topic = os.getenv('KAFKA_TOPIC')
 
     def initiate_session(self):
         # this will run a infinite loop simulating a user using the application. Timeout = 30min
@@ -131,6 +130,9 @@ class UserSession:
 
         print(event)
 
+        if kafka_producer:
+            kafka_producer.send(self.kafka_topic, json.dumps(event))
+
         return
 
 
@@ -146,6 +148,7 @@ class ProfilesGenerator:
         profiles = list()
         for _ in range(quantity):
             new_profile = self.fake.simple_profile()
+            print(new_profile)
             new_profile['birthdate'] = datetime.combine(new_profile['birthdate'], datetime.min.time())
             new_profile['user_id'] = str(uuid4())[:8]
             profiles.append(new_profile)
@@ -160,8 +163,8 @@ class MusicStreamApp:
 
     def __init__(self):
         logging.info("Loading data...")
-        self.tracks = pd.read_csv(filepath_or_buffer="datasets/tracks.csv", delimiter=',', encoding="utf-8")
-        self.artists = pd.read_csv(filepath_or_buffer="datasets/artists.csv", delimiter=',', encoding="utf-8")
+        self.tracks = pd.read_csv(filepath_or_buffer="./datasets/tracks.csv", delimiter=',', encoding="utf-8")
+        self.artists = pd.read_csv(filepath_or_buffer="./datasets/artists.csv", delimiter=',', encoding="utf-8")
 
     def get_song(self):
         """
@@ -181,15 +184,37 @@ class MusicStreamApp:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--users", help="Number of users to simulate", type=int, required=True)
+    parser.add_argument("--kafka", help="Publish events to kafka", action="store_true")
+    args = parser.parse_args()
+    
+    kafka_producer = None
+    if args.kafka:
+        load_dotenv()
+        if not os.getenv('KAFKA_HOST') or not os.getenv('KAFKA_PORT') or not os.getenv('KAFKA_TOPIC'):
+            logging.error("You must configure .env and set KAFKA_HOST, KAFKA_PORT and KAFKA_TOPIC variables!")
+            exit(1)
+        else:
+            print("connecting to kafka...")
+            kafka_host = os.getenv('KAFKA_HOST')
+            kafka_port = os.getenv('KAFKA_PORT')
+            kafka_producer = KafkaProducer(
+                bootstrap_servers='%s:%s' % (os.getenv('KAFKA_HOST'), os.getenv('KAFKA_PORT')),
+                value_serializer=lambda m: json.dumps(m).encode('ascii'))
+
+
+    
     logging.info('Running application')
 
     profile_generator = ProfilesGenerator()
     app = MusicStreamApp()
-    profiles = profile_generator.generate_profiles_pool(200)
+    profiles = profile_generator.generate_profiles_pool(args.users)
 
     threads = list()
     for p in profiles:
-        x = threading.Thread(target=UserSession(app, p).initiate_session)
+        x = threading.Thread(target=UserSession(app, profile=p, kafka_producer=kafka_producer).initiate_session)
         threads.append(x)
         x.start()
     
