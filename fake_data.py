@@ -160,21 +160,14 @@ class MusicStreamApp:
 
     def __init__(self):
         logging.info("Loading data...")
-        self.tracks = pd.read_csv(filepath_or_buffer="tracks.csv", delimiter=',', encoding="utf-8")
-        self.artists = pd.read_csv(filepath_or_buffer="artists.csv", delimiter=',', encoding="utf-8")
+        self.tracks = pd.read_csv(filepath_or_buffer="datasets/tracks.csv", delimiter=',', encoding="utf-8")
+        self.artists = pd.read_csv(filepath_or_buffer="datasets/artists.csv", delimiter=',', encoding="utf-8")
 
     def get_song(self):
         """
             This method must return a random song from database
         """ 
 
-        # pipeline = [
-        #     {"$match": {"duration_ms": {"$lt": 300000}}},
-        #     {"$sample": { "size": 1 }}
-        # ]
-
-        # song = list(self.db.tracks.aggregate(pipeline=pipeline))[0]
-        #print(self.tracks)
         song = self.tracks.sample(n=1).to_dict('index')
         return list(song.values())[0]
 
