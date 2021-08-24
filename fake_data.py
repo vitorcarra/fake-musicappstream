@@ -131,7 +131,7 @@ class UserSession:
         print(event)
 
         if kafka_producer:
-            kafka_producer.send(self.kafka_topic, )
+            kafka_producer.send(self.kafka_topic, json.dumps(event))
 
         return
 
@@ -190,6 +190,7 @@ if __name__ == '__main__':
     parser.add_argument("--kafka", help="Publish events to kafka", action="store_true")
     args = parser.parse_args()
     
+    kafka_producer = None
     if args.kafka:
         load_dotenv()
         if not os.getenv('KAFKA_HOST') or not os.getenv('KAFKA_PORT') or not os.getenv('KAFKA_TOPIC'):
@@ -213,7 +214,7 @@ if __name__ == '__main__':
 
     threads = list()
     for p in profiles:
-        x = threading.Thread(target=UserSession(app, profile=p, kafka=args.kafka).initiate_session)
+        x = threading.Thread(target=UserSession(app, profile=p, kafka_producer=kafka_producer).initiate_session)
         threads.append(x)
         x.start()
     
