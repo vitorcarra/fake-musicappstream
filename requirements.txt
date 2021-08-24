@@ -1,3 +1,4 @@
 faker
 kafka-python
 pandas
+python-dotenv
