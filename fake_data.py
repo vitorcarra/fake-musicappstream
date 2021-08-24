@@ -167,14 +167,7 @@ class MusicStreamApp:
         """
             This method must return a random song from database
         """ 
-
-        # pipeline = [
-        #     {"$match": {"duration_ms": {"$lt": 300000}}},
-        #     {"$sample": { "size": 1 }}
-        # ]
-
-        # song = list(self.db.tracks.aggregate(pipeline=pipeline))[0]
-        #print(self.tracks)
+        
         song = self.tracks.sample(n=1).to_dict('index')
         return list(song.values())[0]
 
